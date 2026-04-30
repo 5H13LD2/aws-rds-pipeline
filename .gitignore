@@ -5,3 +5,9 @@ logs/
 airflow/logs/
 *.log
 *.sqlite
+
+.venv/
+__pycache__/
+*.pyc
+.env
+logs/
