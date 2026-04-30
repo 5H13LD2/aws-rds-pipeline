@@ -1,0 +1,6 @@
+Faker>=23.0.0
+psycopg2-binary>=2.9.7
+python-dotenv>=1.0.0
+boto3>=1.28.0
+apache-airflow-providers-amazon>=5.0.0
+apache-airflow-providers-postgres>=5.0.0

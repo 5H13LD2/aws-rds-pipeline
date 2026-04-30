@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  airflow-init:
+    image: apache/airflow:2.10.2
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__LOGGING__LOG_LEVEL: INFO
+      AIRFLOW__LOGGING__LOG_FORMAT: '[%(asctime)s] %(levelname)s - %(message)s'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      AIRFLOW_UID: '50000'
+      AIRFLOW_GID: '50000'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-postgres Faker psycopg2-binary'
+      AIRFLOW_CONN_POSTGRES_RDS: postgres://${POSTGRES_RDS_LOGIN}:${POSTGRES_RDS_PASSWORD}@${POSTGRES_RDS_HOST}:${POSTGRES_RDS_PORT}/${POSTGRES_RDS_SCHEMA}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./output:/opt/airflow/output
+      - ./scripts:/opt/airflow/scripts:ro
+      - ./sql:/opt/airflow/sql:ro
+    depends_on:
+      postgres:
+        condition: service_started
+    command: bash -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin"
+
+  airflow-webserver:
+    image: apache/airflow:2.10.2
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__LOGGING__LOG_LEVEL: INFO
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      AIRFLOW_UID: '50000'
+      AIRFLOW_GID: '50000'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-postgres Faker psycopg2-binary'
+      AIRFLOW_CONN_POSTGRES_RDS: postgres://${POSTGRES_RDS_LOGIN}:${POSTGRES_RDS_PASSWORD}@${POSTGRES_RDS_HOST}:${POSTGRES_RDS_PORT}/${POSTGRES_RDS_SCHEMA}
+    ports:
+      - 8081:8080
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./output:/opt/airflow/output
+      - ./scripts:/opt/airflow/scripts:ro
+      - ./sql:/opt/airflow/sql:ro
+    depends_on:
+      - postgres
+      - airflow-init
+    command: webserver
+
+  airflow-scheduler:
+    image: apache/airflow:2.10.2
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__LOGGING__LOG_LEVEL: INFO
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      AIRFLOW_UID: '50000'
+      AIRFLOW_GID: '50000'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-amazon apache-airflow-providers-postgres Faker psycopg2-binary'
+      AIRFLOW_CONN_POSTGRES_RDS: postgres://${POSTGRES_RDS_LOGIN}:${POSTGRES_RDS_PASSWORD}@${POSTGRES_RDS_HOST}:${POSTGRES_RDS_PORT}/${POSTGRES_RDS_SCHEMA}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./output:/opt/airflow/output
+      - ./scripts:/opt/airflow/scripts:ro
+      - ./sql:/opt/airflow/sql:ro
+    depends_on:
+      - postgres
+      - airflow-init
+    command: scheduler
+
+volumes:
+  postgres-db-volume:
