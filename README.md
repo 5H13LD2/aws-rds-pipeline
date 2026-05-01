@@ -50,9 +50,11 @@ The DAG `dags/rds_to_s3_raw.py` exports seeded RDS tables to S3 or local raw CSV
 Start Airflow locally using Docker Compose:
 
 ```bash
-docker compose up airflow-init
+mkdir -p output/raw
+sudo chown -R 50000:0 output
+sudo chmod -R 775 output
 
-docker compose up
+docker compose up -d --build
 ```
 
 Open the Airflow UI at `http://localhost:8081`.
@@ -60,7 +62,8 @@ Open the Airflow UI at `http://localhost:8081`.
 Airflow configuration:
 - Create a Postgres connection with ID `postgres_rds`.
 - Create an AWS connection with ID `aws_default` if you want S3 export.
-- Set the Airflow Variable `s3_bucket` to your S3 bucket name to enable S3 upload.
-- If `s3_bucket` is not configured, the DAG writes raw CSV files locally to `output/raw/{table}/{run_date}/`.
+- Set `S3_BRONZE_BUCKET` in `.env`, or set the Airflow Variable `s3_bucket`, to enable S3 upload.
+- Set `AIRFLOW_UID=50000` in `.env` so Airflow containers run with a stable UID against bind-mounted folders.
+- If `s3_bucket` is not configured, the DAG writes raw CSV files locally to `output/raw/{table}/dt={run_date}/`.
 
 Airflow DAGs should be placed in `dags/` and are loaded automatically by the Airflow scheduler.
