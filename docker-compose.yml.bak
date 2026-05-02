@@ -1,0 +1,143 @@
+x-airflow-image: &airflow-image
+  image: aws-pipeline-airflow:2.10.2
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  airflow-init:
+    <<: *airflow-image
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__LOGGING__LOG_LEVEL: INFO
+      AIRFLOW__LOGGING__LOG_FORMAT: '[%(asctime)s] %(levelname)s - %(message)s'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      AIRFLOW_UID: "${AIRFLOW_UID:-50000}"
+      AIRFLOW_GID: '0'
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+      AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION:-ap-southeast-1}"
+      S3_BRONZE_BUCKET: "${S3_BRONZE_BUCKET:-}"
+      ATHENA_DATABASE: "${ATHENA_DATABASE:-retail_logistics_raw}"
+      ATHENA_RAW_PREFIX: "${ATHENA_RAW_PREFIX:-raw}"
+      ATHENA_OUTPUT_LOCATION: "${ATHENA_OUTPUT_LOCATION:-}"
+      ATHENA_SILVER_DATABASE: "${ATHENA_SILVER_DATABASE:-retail_logistics_silver}"
+      ATHENA_SILVER_PREFIX: "${ATHENA_SILVER_PREFIX:-silver}"
+      ATHENA_GOLD_DATABASE: "${ATHENA_GOLD_DATABASE:-retail_logistics_gold}"
+      ATHENA_GOLD_PREFIX: "${ATHENA_GOLD_PREFIX:-gold}"
+      AIRFLOW_CONN_POSTGRES_RDS: postgres://${POSTGRES_RDS_LOGIN}:${POSTGRES_RDS_PASSWORD}@${POSTGRES_RDS_HOST}:${POSTGRES_RDS_PORT}/${POSTGRES_RDS_SCHEMA}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./output:/opt/airflow/output
+      - ./scripts:/opt/airflow/scripts:ro
+      - ./sql:/opt/airflow/sql:ro
+      - ./run_athena_ddl.py:/opt/airflow/run_athena_ddl.py:ro
+      - ./run_athena_silver.py:/opt/airflow/run_athena_silver.py:ro
+      - ./run_athena_gold.py:/opt/airflow/run_athena_gold.py:ro
+    depends_on:
+      postgres:
+        condition: service_started
+    command: bash -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin"
+
+  airflow-webserver:
+    <<: *airflow-image
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__LOGGING__LOG_LEVEL: INFO
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      AIRFLOW_UID: "${AIRFLOW_UID:-50000}"
+      AIRFLOW_GID: '0'
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+      AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION:-ap-southeast-1}"
+      S3_BRONZE_BUCKET: "${S3_BRONZE_BUCKET:-}"
+      ATHENA_DATABASE: "${ATHENA_DATABASE:-retail_logistics_raw}"
+      ATHENA_RAW_PREFIX: "${ATHENA_RAW_PREFIX:-raw}"
+      ATHENA_OUTPUT_LOCATION: "${ATHENA_OUTPUT_LOCATION:-}"
+      ATHENA_SILVER_DATABASE: "${ATHENA_SILVER_DATABASE:-retail_logistics_silver}"
+      ATHENA_SILVER_PREFIX: "${ATHENA_SILVER_PREFIX:-silver}"
+      ATHENA_GOLD_DATABASE: "${ATHENA_GOLD_DATABASE:-retail_logistics_gold}"
+      ATHENA_GOLD_PREFIX: "${ATHENA_GOLD_PREFIX:-gold}"
+      AIRFLOW_CONN_POSTGRES_RDS: postgres://${POSTGRES_RDS_LOGIN}:${POSTGRES_RDS_PASSWORD}@${POSTGRES_RDS_HOST}:${POSTGRES_RDS_PORT}/${POSTGRES_RDS_SCHEMA}
+    ports:
+      - 8081:8080
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./output:/opt/airflow/output
+      - ./scripts:/opt/airflow/scripts:ro
+      - ./sql:/opt/airflow/sql:ro
+      - ./run_athena_ddl.py:/opt/airflow/run_athena_ddl.py:ro
+      - ./run_athena_silver.py:/opt/airflow/run_athena_silver.py:ro
+      - ./run_athena_gold.py:/opt/airflow/run_athena_gold.py:ro
+    depends_on:
+      - postgres
+      - airflow-init
+    command: webserver
+
+  airflow-scheduler:
+    <<: *airflow-image
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__LOGGING__LOG_LEVEL: INFO
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+      AIRFLOW_UID: "${AIRFLOW_UID:-50000}"
+      AIRFLOW_GID: '0'
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+      AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION:-ap-southeast-1}"
+      S3_BRONZE_BUCKET: "${S3_BRONZE_BUCKET:-}"
+      ATHENA_DATABASE: "${ATHENA_DATABASE:-retail_logistics_raw}"
+      ATHENA_RAW_PREFIX: "${ATHENA_RAW_PREFIX:-raw}"
+      ATHENA_OUTPUT_LOCATION: "${ATHENA_OUTPUT_LOCATION:-}"
+      ATHENA_SILVER_DATABASE: "${ATHENA_SILVER_DATABASE:-retail_logistics_silver}"
+      ATHENA_SILVER_PREFIX: "${ATHENA_SILVER_PREFIX:-silver}"
+      ATHENA_GOLD_DATABASE: "${ATHENA_GOLD_DATABASE:-retail_logistics_gold}"
+      ATHENA_GOLD_PREFIX: "${ATHENA_GOLD_PREFIX:-gold}"
+      AIRFLOW_CONN_POSTGRES_RDS: postgres://${POSTGRES_RDS_LOGIN}:${POSTGRES_RDS_PASSWORD}@${POSTGRES_RDS_HOST}:${POSTGRES_RDS_PORT}/${POSTGRES_RDS_SCHEMA}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./output:/opt/airflow/output
+      - ./scripts:/opt/airflow/scripts:ro
+      - ./sql:/opt/airflow/sql:ro
+      - ./run_athena_ddl.py:/opt/airflow/run_athena_ddl.py:ro
+      - ./run_athena_silver.py:/opt/airflow/run_athena_silver.py:ro
+      - ./run_athena_gold.py:/opt/airflow/run_athena_gold.py:ro
+    depends_on:
+      - postgres
+      - airflow-init
+    command: scheduler
+
+volumes:
+  postgres-db-volume:

@@ -196,7 +196,30 @@ POSTGRES_RDS_SCHEMA=your_database
 5. Review inserted counts in the Airflow task logs.
 6. Trigger `rds_to_s3_raw`.
 7. Confirm CSV outputs in S3 or in `output/raw/`.
-8. Walk through the screenshots to show the data moving from generation, to RDS, to raw data lake storage.
+8. Trigger `athena_medallion_pipeline` to build the Athena bronze, silver, and gold layers.
+9. Review the task logs for each Athena layer:
+   - `build_bronze_athena_tables`
+   - `build_silver_parquet_tables`
+   - `build_gold_analytics_tables`
+10. Walk through the screenshots to show the data moving from generation, to RDS, to raw data lake storage, to Athena analytics tables.
+
+## Athena Medallion DAG
+
+Airflow DAG: `athena_medallion_pipeline`
+
+This DAG automates the Athena scripts in order:
+
+```text
+run_athena_ddl.py
+        |
+        v
+run_athena_silver.py
+        |
+        v
+run_athena_gold.py
+```
+
+The DAG is manually triggered by default so demos can control when the Athena layers are rebuilt. Each task streams the script output into Airflow logs, including table creation, S3 prefix cleanup for CTAS outputs, and row-count verification.
 
 ## Design Notes
 
